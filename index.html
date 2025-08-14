@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prime Membership Card Generator</title>
+
+  <!-- Tailwind (browser@4) + Typography plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script type="tailwind-config">
+  {
+    "theme": {
+      "extend": {
+        "fontFamily": {
+          "brand": ["'Poppins'", "ui-sans-serif", "system-ui"],
+          "body": ["'Inter'", "ui-sans-serif", "system-ui"]
+        }
+      }
+    },
+    "plugins": [tailwind.typography]
+  }
+  </script>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Libraries (no bundler) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+  <style>
+    /* Card export size: CR80 85.6×54mm @ 300DPI → 1011×638 px (incl. 3mm bleed) */
+    :root{
+      --cardW: 1011px;
+      --cardH: 638px;
+    }
+    canvas.card { width: 336px; height: 212px; } /* UI preview scale */
+  </style>
+</head>
+<body class="h-full bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-body">
+  <div class="min-h-full">
+    <!-- App Header -->
+    <header class="sticky top-0 z-10 backdrop-blur border-b border-neutral-200/70 dark:border-neutral-800/70 bg-white/70 dark:bg-neutral-950/60">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <img id="appMark" src="./assets/logo-mark.svg" class="h-8 w-8 rounded" alt="mark">
+          <div class="text-xl font-brand font-semibold tracking-wide">Card Forge — Prime Membership</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnDark" class="px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 text-sm">Toggle Dark</button>
+          <a href="./assets/sample.csv" download class="px-3 py-1.5 rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-sm">Download sample CSV</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="max-w-7xl mx-auto px-4 py-6 grid lg:grid-cols-[360px,1fr] gap-6">
+      <!-- Controls -->
+      <section class="space-y-6">
+        <!-- Brand -->
+        <div class="p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <h2 class="font-brand text-lg mb-3">Brand</h2>
+          <div class="space-y-3">
+            <label class="block text-sm">Brand Name
+              <input id="brandName" type="text" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" placeholder="BRAND NAME">
+            </label>
+            <label class="block text-sm">Tagline / Message
+              <input id="brandTag" type="text" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" placeholder="PRIME MEMBERSHIP CARD">
+            </label>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="block text-sm">Primary Color
+                <input id="primaryColor" type="color" class="mt-1 w-full h-10 rounded" value="#0f172a">
+              </label>
+              <label class="block text-sm">Accent Color
+                <input id="accentColor" type="color" class="mt-1 w-full h-10 rounded" value="#38bdf8">
+              </label>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="block text-sm">Logo (full)
+                <input id="logoFull" type="file" accept="image/*,.svg" class="mt-1 w-full text-sm">
+              </label>
+              <label class="block text-sm">Logo (mark)
+                <input id="logoMark" type="file" accept="image/*,.svg" class="mt-1 w-full text-sm">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact & Legal -->
+        <div class="p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <h2 class="font-brand text-lg mb-3">Contact & Legal</h2>
+          <div class="space-y-3">
+            <label class="block text-sm">Phone <input id="phone" type="text" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" placeholder="+91 9544319000"></label>
+            <label class="block text-sm">Website <input id="website" type="text" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" placeholder="www.brandsname.in"></label>
+            <label class="block text-sm">Address<textarea id="address" rows="2" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" placeholder="TC 30/104 (1) Kamaleswaram, Manacaud PO - 695009"></textarea></label>
+            <label class="block text-sm">Legal Text (back)<textarea id="legal" rows="4" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" placeholder="This card is not a credit card..."></textarea></label>
+          </div>
+        </div>
+
+        <!-- Background -->
+        <div class="p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <h2 class="font-brand text-lg mb-3">Background</h2>
+          <div class="space-y-3">
+            <div class="flex gap-2 text-sm">
+              <label class="flex items-center gap-2"><input type="radio" name="bgMode" value="pattern" checked> Pattern</label>
+              <label class="flex items-center gap-2"><input type="radio" name="bgMode" value="solid"> Solid</label>
+              <label class="flex items-center gap-2"><input type="radio" name="bgMode" value="upload"> Upload Image</label>
+            </div>
+            <div id="patternPicker" class="grid grid-cols-4 gap-2">
+              <button data-pattern="rings" class="h-10 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.15)_1px,transparent_1px)] [background-size:10px_10px]"></button>
+              <button data-pattern="grid" class="h-10 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-[linear-gradient(rgba(0,0,0,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.12)_1px,transparent_1px)] [background-size:12px_12px]"></button>
+              <button data-pattern="dots" class="h-10 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-[radial-gradient(rgba(0,0,0,0.15)_1px,transparent_1px)] [background-size:8px_8px]"></button>
+              <button data-pattern="wave" class="h-10 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-[repeating-linear-gradient(45deg,rgba(0,0,0,0.12),rgba(0,0,0,0.12)_2px,transparent_2px,transparent_6px)]"></button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="block text-sm">Solid BG
+                <input id="solidBg" type="color" class="mt-1 w-full h-10 rounded" value="#111827">
+              </label>
+              <label class="block text-sm">Upload BG
+                <input id="bgUpload" type="file" accept="image/*" class="mt-1 w-full text-sm">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sequence & Barcode -->
+        <div class="p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <h2 class="font-brand text-lg mb-3">Sequence & Barcode</h2>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block text-sm">ID Prefix <input id="idPrefix" type="text" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" value="MH"></label>
+            <label class="block text-sm">Start Number <input id="startNum" type="number" min="1" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" value="1"></label>
+          </div>
+          <p class="text-xs text-neutral-500 mt-2">Barcode: Code‑128. If CSV lacks <code>member_id</code>, we auto-generate from prefix+sequence.</p>
+        </div>
+
+        <!-- Save / Load Prefs -->
+        <div class="p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <h2 class="font-brand text-lg mb-3">Preferences</h2>
+          <div class="flex gap-2">
+            <button id="savePrefs" class="px-3 py-2 rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900">Save</button>
+            <button id="loadPrefs" class="px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700">Load</button>
+            <button id="clearPrefs" class="px-3 py-2 rounded-xl border border-red-400 text-red-600">Forget</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Preview & Actions -->
+      <section class="space-y-6">
+        <div class="p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-brand text-lg">Single Card Preview</h2>
+            <div class="flex gap-2">
+              <button id="dlFront" class="px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700">Download Front</button>
+              <button id="dlBack" class="px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700">Download Back</button>
+            </div>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div class="space-y-3">
+              <label class="block text-sm">Member Name
+                <input id="memberName" type="text" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" placeholder="Member Name">
+              </label>
+              <label class="block text-sm">Member ID (optional)
+                <input id="memberId" type="text" class="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2" placeholder="Auto if left blank">
+              </label>
+            </div>
+            <div class="text-sm text-neutral-500">Tip: Adjust brand, background, and contact sections on the left. Front & back previews update live.</div>
+          </div>
+
+          <div class="mt-4 grid md:grid-cols-2 gap-6">
+            <div>
+              <div class="text-sm mb-2">Front</div>
+              <canvas id="front" class="card rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-100"></canvas>
+            </div>
+            <div>
+              <div class="text-sm mb-2">Back</div>
+              <canvas id="back" class="card rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-100"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk -->
+        <div class="p-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-brand text-lg">Bulk CSV</h2>
+            <button id="bulkGo" class="px-3 py-2 rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900">Generate ZIP</button>
+          </div>
+          <p class="text-sm text-neutral-600 dark:text-neutral-300 mb-3">CSV columns: <code>name, member_id, phone, notes</code>. Missing <code>member_id</code> gets auto-filled from sequence.</p>
+          <input id="csvFile" type="file" accept=".csv" class="w-full">
+          <div id="bulkStatus" class="mt-3 text-sm text-neutral-500"></div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <script src="./js/app.js"></script>
+</body>
+</html>
